@@ -1,0 +1,8 @@
+streamlit
+pandas
+pillow
+duckduckgo-search
+requests
+openpyxl
+
+st-gsheets-connection
