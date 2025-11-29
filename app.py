@@ -50,7 +50,8 @@ def cargar_vinos():
     conn = get_conn()
     for attempt in range(3):
         try:
-            df = conn.read(ttl=0)
+            # TTL=600 (10 min) para evitar error 429 Quota Exceeded
+            df = conn.read(ttl=600)
             # Convertir a numérico
             cols_num = ['id', 'anada', 'anio_limite', 'puntuacion']
             for c in cols_num:
@@ -66,7 +67,9 @@ def cargar_vinos():
             return df
         except Exception as e:
             if attempt < 2:
-                time.sleep(2)
+                # Backoff progresivo: 2s, luego 5s
+                wait_time = 2 if attempt == 0 else 5
+                time.sleep(wait_time)
                 continue
             else:
                 st.error(f"Error persistente leyendo Google Sheets: {e}")
