@@ -66,6 +66,20 @@ def cargar_vinos():
     except Exception as e:
         return pd.DataFrame()
 
+def safe_update(df_to_save):
+    """
+    Función de guardado seguro que valida que el DataFrame no esté vacío
+    antes de enviar los datos a Google Sheets.
+    """
+    if df_to_save is None or df_to_save.empty:
+        st.error('⛔ BLOQUEO DE SEGURIDAD: La app intentó borrar todos los datos. Operación cancelada.')
+        st.stop()
+    
+    conn = get_conn()
+    conn.update(data=df_to_save)
+    st.cache_data.clear()
+
+
 def guardar_vino(datos):
     conn = get_conn()
     df = cargar_vinos()
@@ -93,8 +107,8 @@ def guardar_vino(datos):
     }])
     
     df_updated = pd.concat([df, new_row], ignore_index=True)
-    conn.update(data=df_updated)
-    st.cache_data.clear()
+    safe_update(df_updated)
+
 
 def actualizar_vino(id_vino, datos):
     conn = get_conn()
@@ -127,8 +141,9 @@ def actualizar_vino(id_vino, datos):
             df.at[i, 'imagen_data'] = img_hex
             df.at[i, 'tipo_imagen'] = tipo_imagen
             
-            conn.update(data=df)
-            st.cache_data.clear()
+            
+            safe_update(df)
+
 
 def registrar_consumo(id_vino):
     conn = get_conn()
@@ -137,8 +152,8 @@ def registrar_consumo(id_vino):
         idx = df[df['id'] == id_vino].index
         if not idx.empty:
             df.at[idx[0], 'ubicacion'] = 'Consumido'
-            conn.update(data=df)
-            st.cache_data.clear()
+            safe_update(df)
+
 
 def restaurar_vino(id_vino):
     conn = get_conn()
@@ -147,16 +162,16 @@ def restaurar_vino(id_vino):
         idx = df[df['id'] == id_vino].index
         if not idx.empty:
             df.at[idx[0], 'ubicacion'] = 'Por Clasificar'
-            conn.update(data=df)
-            st.cache_data.clear()
+            safe_update(df)
+
 
 def borrar_vino(id_vino):
     conn = get_conn()
     df = cargar_vinos()
     if not df.empty and 'id' in df.columns:
         df = df[df['id'] != id_vino]
-        conn.update(data=df)
-        st.cache_data.clear()
+        safe_update(df)
+
 
 def borrar_por_clasificar():
     conn = get_conn()
@@ -165,8 +180,8 @@ def borrar_por_clasificar():
         len_before = len(df)
         df = df[df['ubicacion'] != 'Por Clasificar']
         len_after = len(df)
-        conn.update(data=df)
-        st.cache_data.clear()
+        safe_update(df)
+
         return len_before - len_after
     return 0
 
@@ -720,9 +735,9 @@ with st.sidebar:
                     df_final = df_final.fillna("")
                     
                     # Guardar
-                    conn = get_conn()
-                    conn.update(data=df_final)
-                    st.cache_data.clear()
+                    # Guardar
+                    safe_update(df_final)
+
                     
                     st.success(f"✅ Importación exitosa: {len(df_to_add)} vinos agregados.")
                     time.sleep(1.5)
