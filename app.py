@@ -48,24 +48,30 @@ def get_conn():
 
 def cargar_vinos():
     conn = get_conn()
-    try:
-        df = conn.read(ttl=0)
-        # Convertir a numérico
-        cols_num = ['id', 'anada', 'anio_limite', 'puntuacion']
-        for c in cols_num:
-            if c in df.columns:
-                df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
-        
-        # Manejo de imágenes (Hex str -> Bytes)
-        if 'imagen_data' in df.columns:
-             df['imagen_data'] = df['imagen_data'].apply(
-                 lambda x: bytes.fromhex(x) if isinstance(x, str) and x else None
-             )
-             
-        return df
-    except Exception as e:
-        st.error("⚠️ Error leyendo datos de Google Sheets. Por favor, recarga la página.")
-        return pd.DataFrame()
+    for attempt in range(3):
+        try:
+            df = conn.read(ttl=0)
+            # Convertir a numérico
+            cols_num = ['id', 'anada', 'anio_limite', 'puntuacion']
+            for c in cols_num:
+                if c in df.columns:
+                    df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0).astype(int)
+            
+            # Manejo de imágenes (Hex str -> Bytes)
+            if 'imagen_data' in df.columns:
+                 df['imagen_data'] = df['imagen_data'].apply(
+                     lambda x: bytes.fromhex(x) if isinstance(x, str) and x else None
+                 )
+                 
+            return df
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2)
+                continue
+            else:
+                st.error(f"Error persistente leyendo Google Sheets: {e}")
+                return pd.DataFrame()
+    return pd.DataFrame()
 
 
 def safe_update(df_to_save):
