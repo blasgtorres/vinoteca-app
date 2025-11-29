@@ -64,7 +64,9 @@ def cargar_vinos():
              
         return df
     except Exception as e:
+        st.error("⚠️ Error leyendo datos de Google Sheets. Por favor, recarga la página.")
         return pd.DataFrame()
+
 
 def safe_update(df_to_save):
     """
@@ -78,6 +80,10 @@ def safe_update(df_to_save):
     conn = get_conn()
     conn.update(data=df_to_save)
     st.cache_data.clear()
+    st.success("✅ ¡Guardado en la nube correctamente!")
+    time.sleep(2)
+    st.rerun()
+
 
 
 def guardar_vino(datos):
@@ -455,23 +461,22 @@ with st.sidebar:
             if vino_data['ubicacion'] != 'Consumido':
                 st.markdown("---")
                 if st.button("🍷 ¡REGISTRAR COMO BEBIDO!", type="primary"):
-                    registrar_consumo(st.session_state.selected_id)
                     st.balloons()
-                    st.success("¡Salud! Vino movido al historial.")
-                    time.sleep(1.5)
+                    # Guardamos ID antes de limpiar
+                    id_temp = st.session_state.selected_id
                     st.session_state.selected_id = None
-                    st.rerun()
+                    registrar_consumo(id_temp)
+
                 st.markdown("---")
             
             # BOTÓN DE RESTAURAR (Solo si ESTÁ consumido)
             elif vino_data['ubicacion'] == 'Consumido':
                 st.markdown("---")
                 if st.button("♻️ RESTAURAR A BODEGA"): # Botón normal (amarillo/gris según tema, pero distinto al primary)
-                    restaurar_vino(st.session_state.selected_id)
-                    st.success("Vino restaurado a 'Por Clasificar'.")
-                    time.sleep(1.0)
+                    id_temp = st.session_state.selected_id
                     st.session_state.selected_id = None
-                    st.rerun()
+                    restaurar_vino(id_temp)
+
                 st.markdown("---")
             
             if st.button("➕ Cancelar / Nuevo"):
@@ -611,13 +616,9 @@ with st.sidebar:
             
             if modo_edicion:
                 actualizar_vino(st.session_state.selected_id, datos)
-                st.success("Actualizado!")
             else:
                 guardar_vino(datos)
-                st.success("Guardado!")
-            
-            time.sleep(0.5)
-            st.rerun()
+
         else:
             st.error("Falta Nombre/Bodega")
             
@@ -625,11 +626,10 @@ with st.sidebar:
     if modo_edicion:
         st.markdown("---")
         if st.button("🗑️ ELIMINAR VINO", type="primary"): 
-            borrar_vino(st.session_state.selected_id)
+            id_temp = st.session_state.selected_id
             st.session_state.selected_id = None
-            st.success("Vino eliminado.")
-            time.sleep(0.5)
-            st.rerun()
+            borrar_vino(id_temp)
+
 
     # --- IMPORTACIÓN / LIMPIEZA ---
     with st.expander("⚙️ Importar / Limpiar"):
@@ -735,13 +735,8 @@ with st.sidebar:
                     df_final = df_final.fillna("")
                     
                     # Guardar
-                    # Guardar
                     safe_update(df_final)
 
-                    
-                    st.success(f"✅ Importación exitosa: {len(df_to_add)} vinos agregados.")
-                    time.sleep(1.5)
-                    st.rerun()
                 else:
                     st.warning("No se encontraron datos para importar.")
                     
@@ -752,6 +747,4 @@ with st.sidebar:
         if st.checkbox("Borrado Masivo"):
             if st.button("🗑️ Borrar 'Por Clasificar'"):
                 n = borrar_por_clasificar()
-                st.success(f"Borrados {n}")
-                time.sleep(1)
-                st.rerun()
+
