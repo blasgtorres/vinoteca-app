@@ -5,6 +5,8 @@ from duckduckgo_search import DDGS
 import requests
 from io import BytesIO
 import base64
+from PIL import Image
+import io
 import time
 import random
 from datetime import datetime
@@ -109,8 +111,11 @@ def guardar_vino(datos):
      gama, procedencia, detalle, nota_cata, ubicacion, anio_limite, 
      puntuacion, imagen_data, tipo_imagen) = datos
      
-    # Convertir imagen a hex para storage
-    img_hex = imagen_data.hex() if imagen_data else None
+    # Convertir imagen a hex para storage (CON COMPRESIÓN)
+    img_hex, mime_type = preparar_imagen_db(imagen_data)
+    # Si preparar_imagen_db devolvió None (por error o tamaño), se guarda None.
+    # Si devolvió algo, forzamos el tipo a 'image/jpeg' que es lo que devuelve la función.
+    final_tipo_imagen = mime_type if img_hex else None
     
     new_row = pd.DataFrame([{
         'id': new_id,
@@ -118,7 +123,7 @@ def guardar_vino(datos):
         'uva_principal': uva_principal, 'composicion_blend': composicion_blend,
         'gama': gama, 'procedencia': procedencia, 'detalle': detalle,
         'nota_cata': nota_cata, 'ubicacion': ubicacion, 'anio_limite': anio_limite,
-        'puntuacion': puntuacion, 'imagen_data': img_hex, 'tipo_imagen': tipo_imagen
+        'puntuacion': puntuacion, 'imagen_data': img_hex, 'tipo_imagen': final_tipo_imagen
     }])
     
     df_updated = pd.concat([df, new_row], ignore_index=True)
@@ -138,7 +143,8 @@ def actualizar_vino(id_vino, datos):
              gama, procedencia, detalle, nota_cata, ubicacion, anio_limite, 
              puntuacion, imagen_data, tipo_imagen) = datos
              
-            img_hex = imagen_data.hex() if imagen_data else None
+            img_hex, mime_type = preparar_imagen_db(imagen_data)
+            final_tipo_imagen = mime_type if img_hex else None
             
             df.at[i, 'nombre'] = nombre
             df.at[i, 'bodega'] = bodega
@@ -154,7 +160,7 @@ def actualizar_vino(id_vino, datos):
             df.at[i, 'anio_limite'] = anio_limite
             df.at[i, 'puntuacion'] = puntuacion
             df.at[i, 'imagen_data'] = img_hex
-            df.at[i, 'tipo_imagen'] = tipo_imagen
+            df.at[i, 'tipo_imagen'] = final_tipo_imagen
             
             
             safe_update(df)
@@ -260,6 +266,56 @@ def get_column_value(row, possible_names, default=''):
             if pd.notna(val):
                 return str(val).strip()
     return default
+
+def comprimir_imagen(blob):
+    """
+    Redimensiona a 150x150 max, convierte a JPEG quality=50.
+    Retorna bytes comprimidos.
+    """
+    try:
+        if not blob: return None
+        
+        # Abrir imagen desde bytes
+        img = Image.open(io.BytesIO(blob))
+        
+        # Convertir a RGB (necesario si viene de PNG con transparencia)
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+            
+        # Redimensionar (Thumbnail mantiene aspect ratio)
+        img.thumbnail((150, 150))
+        
+        # Guardar en buffer como JPEG
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=50, optimize=True)
+        return buffer.getvalue()
+        
+    except Exception as e:
+        st.error(f"Error comprimiendo imagen: {e}")
+        return None
+
+def preparar_imagen_db(imagen_blob):
+    """
+    Comprime y convierte a Hex. Valida longitud < 45000 chars.
+    Retorna (hex_string, 'image/jpeg') o (None, None) si falla/excede.
+    """
+    if not imagen_blob:
+        return None, None
+        
+    # 1. Comprimir
+    blob_comp = comprimir_imagen(imagen_blob)
+    if not blob_comp:
+        return None, None
+        
+    # 2. Convertir a Hex
+    img_hex = blob_comp.hex()
+    
+    # 3. Validar Longitud
+    if len(img_hex) > 45000:
+        st.warning("⚠️ La imagen es demasiado compleja para guardarse en la nube (límite excedido). Se guardará el vino SIN foto.")
+        return None, None
+        
+    return img_hex, 'image/jpeg'
 
 # --- INICIALIZACIÓN ---
 # init_db() # Removed
